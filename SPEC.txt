@@ -1,0 +1,277 @@
+MVP design: Local Log Viewer
+For your selected requirements, I'd build a lightweight developer tool using Vite + React + TypeScript, with a small local agent that reads your computer's files and a web UI hosted on a remote server.
+There is one important architectural constraint: a remote server cannot directly read files on your computer just because you open its website. You need a local agent or a browser-granted file access mechanism. For your requirements — multiple saved folders, live monitoring, large files, search, and tabs — a local agent is the better fit.
+1. Architecture
+Your computer
+Log files · Multiple directories
+Local Agent (Node.js)
+Filesystem · Search · File watching
+
+
+Authenticated, encrypted WebSocket connection
+
+Remote server
+Vite-built frontend · HTTPS · API gateway
+
+Browser connects to remote UI
+
+Browser
+File sidebar · Tabs · Search · Live log view
+
+
+The connection should be initiated outbound from your computer to the remote server. That avoids opening a public port on your computer or exposing your filesystem directly to the internet.
+Recommended technology
+Layer	Choice
+Frontend	Vite, React, TypeScript
+UI styling	Tailwind CSS
+Log rendering	Virtualized rows with @tanstack/react-virtual
+Local agent	Node.js + TypeScript
+Communication	WebSocket, with a small HTTPS control API
+File access	Node.js fs/promises, streams, fs.watch or a robust watcher library
+Remote hosting	Any HTTPS-capable static hosting + a small WebSocket gateway
+Storage	Local JSON config for folders; SQLite only if history grows
+This avoids needing a database or a heavyweight backend in the initial version.
+2. Concrete project structure
+I'd use a monorepo so the frontend, local agent, and shared protocol can be developed and deployed independently.
+logview/
+
+apps/web/
+Vite frontend, log viewer, tabs, search, settings, connection status
+src/components · src/pages · src/hooks · src/lib
+
+
+apps/agent/
+Local filesystem access, file streaming, search, live watching, saved folder configuration
+src/agent · src/files · src/search · src/watch · src/config
+
+
+apps/gateway/
+Remote WebSocket gateway, authentication, pairing, browser-to-agent routing
+src/auth · src/sessions · src/websocket
+
+
+packages/protocol/
+Shared TypeScript message types, schemas, request IDs, errors
+
+
+package.json / pnpm-workspace.yaml
+Workspace scripts, dependencies, build commands
+
+
+
+
+Frontend component structure
+apps/web/src/
+├── app/
+│   ├── App.tsx
+│   └── routes.tsx
+├── components/
+│   ├── layout/
+│   │   ├── AppShell.tsx
+│   │   └── StatusBar.tsx
+│   ├── folders/
+│   │   ├── FolderSidebar.tsx
+│   │   ├── FolderPicker.tsx
+│   │   └── FileTree.tsx
+│   ├── tabs/
+│   │   └── LogTabs.tsx
+│   └── logs/
+│       ├── LogViewer.tsx
+│       ├── LogLine.tsx
+│       ├── SearchBar.tsx
+│       └── FilterBar.tsx
+├── hooks/
+│   ├── useAgentConnection.ts
+│   ├── useLogFile.ts
+│   └── useLogSearch.ts
+├── lib/
+│   ├── gateway-client.ts
+│   ├── protocol.ts
+│   └── log-parser.ts
+└── main.tsx
+
+
+Keep the log rendering and transport layers independent. That way, you can replace WebSockets with a direct local connection later without rewriting the UI.
+3. API and communication design
+Use REST for basic remote account/session operations and WebSockets for the actual file operations. Logs can be large and continuously updated, so WebSockets avoid repeated HTTP requests for every small update.
+A. Remote gateway HTTP API
+Method	Endpoint	Purpose
+POST	/api/pairings	Start pairing a new local agent
+POST	/api/pairings/claim	Claim a pairing code after authentication
+GET	/api/agents	List the user's registered agents
+GET	/api/agents/:id/status	Get agent connection status
+DELETE	/api/agents/:id	Revoke an agent's access
+The frontend connects to the gateway at a URL such as https://logs.example.com. The local agent connects outbound to wss://logs.example.com/ws/agent.
+B. WebSocket message protocol
+Use a request/response envelope with unique request IDs. The gateway routes requests from the browser to the selected agent and streams the responses back.
+Example request:
+{
+  "type": "file.read",
+  "requestId": "req-123",
+  "payload": {
+    "fileId": "file-abc",
+    "offset": 0,
+    "limitBytes": 65536
+  }
+}
+
+
+Example response:
+{
+  "type": "file.read.result",
+  "requestId": "req-123",
+  "payload": {
+    "content": "2026-10-15 INFO Server started\n",
+    "nextOffset": 32,
+    "eof": true
+  }
+}
+
+
+Use byte offsets rather than line numbers for the initial file-reading API. Byte ranges allow efficient paging through large files without loading the entire file or indexing every line upfront.
+C. MVP operations
+Operation	Purpose
+folder.list	List saved folder roots
+folder.add / folder.remove	Manage configured roots
+file.list	List files and directories inside an approved root
+file.read	Read a file chunk by byte offset
+file.tail	Read the last N bytes when opening a large log
+file.search	Search for text or regex matches in a file
+file.watch.start / file.watch.stop	Start or stop live monitoring
+file.changed	Stream newly appended content
+file.error	Report read, permission, or parsing errors
+Each request should have a timeout, a cancellation mechanism, and a maximum response size.
+D. How large-file reading works
+Don't render a 1 GB file in one operation.
+1. Open the file by requesting its last 64 KB or 256 KB.
+2. Start at a complete line boundary and render only the visible rows.
+3. Load preceding or following chunks as the user scrolls.
+4. Maintain a small in-memory cache of recently viewed chunks.
+5. Search the file in the agent using streaming reads, returning only matching lines and their byte offsets.
+6. Watch for appended bytes and emit incremental updates.
+7. Detect file rotation or truncation and reopen the file as needed.
+For the UI, use virtual scrolling. For the agent, use Node.js streams and backpressure. These two decisions are more important for performance than choosing a large frontend framework.
+4. Data model and saved folders
+For the MVP, keep configuration on the computer running the agent. You don't need a database for folders or file contents.
+Example ~/.logview/config.json:
+{
+  "roots": [
+    {
+      "id": "backend",
+      "name": "Backend logs",
+      "path": "/var/log/myapp"
+    },
+    {
+      "id": "local-dev",
+      "name": "Local development",
+      "path": "/home/johnny/projects/myapp/logs"
+    }
+  ],
+  "settings": {
+    "maxInitialBytes": 262144,
+    "watchEnabled": true
+  }
+}
+
+
+The browser stores presentation state separately, for example in localStorage:
+- Last selected agent and folder.
+- Open tabs and active tab.
+- Search query and filters.
+- Scroll position per tab.
+Do not persist log contents or authentication secrets in browser storage.
+For security, the agent should assign opaque IDs to approved roots and files. The browser should not be able to send arbitrary absolute paths to read. Resolve every file operation against the approved root and reject path traversal, symlinks that escape the root, and unauthorized access.
+5. Implementation plan
+I'd implement this in six phases, with the filesystem functionality working locally before adding remote connectivity.
+1
+
+Build the local agent
+Foundation
+- Set up the pnpm monorepo and TypeScript.
+- Add saved folder configuration.
+- Implement folder.list, file.list, file.read, and file.tail.
+- Start with a local CLI to test filesystem operations.
+- Restrict access to explicitly approved folders.
+Deliverable: reliably browse and read local files without a browser.
+
+
+
+2
+
+Build the viewer UI
+- Create the sidebar, file tree, tabs, and log panel.
+- Add virtual scrolling and chunk-based reading.
+- Implement text search and severity highlighting.
+- Add keyboard shortcuts and loading/error states.
+Deliverable: a usable viewer running against a local mock API or agent.
+
+
+
+3
+
+Add live monitoring
+- Watch selected files for changes.
+- Stream appended bytes with WebSockets.
+- Handle rotation, truncation, disconnects, and reconnects.
+- Pause streaming when a tab isn't active.
+Deliverable: a log viewer that behaves like tail -f.
+
+
+
+4
+
+Add remote connectivity
+- Implement the WebSocket gateway.
+- Add one-time pairing codes and authenticated agent registration.
+- Route browser requests to the correct agent.
+- Add connection status, request timeouts, and cancellation.
+Deliverable: use the viewer through a remote URL while the agent runs on your computer.
+
+
+
+5
+
+Harden performance and security
+- Test multi-gigabyte files.
+- Bound memory, message sizes, and concurrent requests.
+- Enforce authorization for every agent operation.
+- Add rate limits, secure credentials, and payload-free operational logs.
+Deliverable: stable operation without excessive memory use or unrestricted filesystem access.
+
+
+
+6
+
+Deploy and package
+- Deploy the Vite build as static assets.
+- Deploy the gateway to a persistent Node.js service that supports WebSockets.
+- Provide a simple local agent startup command.
+- Add a sample config, setup instructions, and health checks.
+Deliverable: a complete end-to-end MVP.
+
+
+
+6. Important remote-access and privacy decision
+Because you're viewing local logs through a remote server, the gateway will normally relay the log contents. With ordinary TLS WebSockets, the gateway can technically access the plaintext payload.
+If your logs contain customer data, access tokens, database credentials, or financial information, there are two reasonable deployment choices:
+Option A — Remote gateway
+Simplest to build and use from different devices. Use strong authentication, short-lived pairing codes, strict agent authorization, and avoid payload logging. Assume the gateway can see the logs.
+
+Option B — Private/self-hosted gateway or end-to-end encryption
+Keep the gateway under your control, or add end-to-end encryption so the relay cannot read file content. The latter requires key exchange, secure session binding, and more protocol complexity.
+
+
+I'd begin with Option A for development using non-sensitive test logs, then make the privacy boundary explicit before using production logs.
+7. MVP acceptance criteria
+The first usable release is complete when it can:
+- [ ] Save and switch between multiple approved folders.
+- [ ] Switch between files without reloading the whole application.
+- [ ] Open multiple log tabs and retain each tab's scroll position.
+- [ ] Read a multi-gigabyte file incrementally without loading it all into memory.
+- [ ] Search a large file without freezing the UI.
+- [ ] Follow appended log lines and recover from file rotation.
+- [ ] Reconnect after a temporary network interruption.
+- [ ] Work through the remote URL without opening inbound ports on your computer.
+- [ ] Prevent the browser or remote user from reading files outside authorized roots.
+My suggested first coding task: implement apps/agent and packages/protocol first, with tests for chunked file reads and path validation. Then connect the React UI to the local agent before introducing the remote gateway. This gives you a working log viewer early and isolates remote networking issues from filesystem bugs.
+One final architectural choice is worth making early: if this is strictly a personal tool, you can use a single-user deployment and skip multi-tenant accounts. Keep agent authorization and pairing, though — those protect your computer's filesystem.
