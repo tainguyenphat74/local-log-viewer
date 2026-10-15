@@ -119,6 +119,25 @@ test("login, pair, browse, tabs, search, paging, live and reconnect", async ({
   await page.getByLabel("Severity").selectOption("ERROR");
   await expect(page.getByLabel("Log content")).not.toContainText("WARN");
   expect(errors).toEqual([]);
+  if (process.env.LOGVIEW_SCREENSHOT_DIR) {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.screenshot({
+      path: `${process.env.LOGVIEW_SCREENSHOT_DIR}/logview-desktop.png`,
+      fullPage: true,
+    });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(page.getByLabel("Search logs")).toBeVisible();
+    expect(
+      await page.locator(".viewer").evaluate((el) => el.clientWidth),
+    ).toBeGreaterThan(300);
+    expect(
+      await page.evaluate(() => document.documentElement.scrollWidth),
+    ).toBe(390);
+    await page.screenshot({
+      path: `${process.env.LOGVIEW_SCREENSHOT_DIR}/logview-mobile.png`,
+      fullPage: true,
+    });
+  }
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "Sign in", exact: true }),
