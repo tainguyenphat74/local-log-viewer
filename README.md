@@ -37,7 +37,7 @@ For frontend development, run the gateway with **LOGVIEW_ORIGIN=http://127.0.0.1
 
 ## Security and privacy
 
-- The gateway terminates TLS and **can see plaintext log contents**. This is TLS-protected relay transport, **not end-to-end encryption**. Host it under your control; do not approve sensitive folders casually.
+- The reverse proxy terminates TLS; the gateway **can see plaintext log contents**. This is TLS-protected relay transport, **not end-to-end encryption**. Host it under your control; do not approve sensitive folders casually.
 - Browser auth uses an eight-hour HttpOnly, SameSite=Strict cookie, with Secure on HTTPS. Origin checks protect login and WebSocket upgrades; authenticated HTTP mutations also require a session-bound CSRF header. No auth tokens are stored in URLs or localStorage. Login and pairing claims are limited to ten attempts per minute per TCP peer.
 - Agent credentials travel in the outbound WebSocket Authorization header. Pairing codes expire after 120 seconds and can be claimed once. Only credential hashes persist on the gateway; browser sessions and pending pairings are memory-only. Restarting the gateway requires browser login again but agents reconnect.
 - Opaque file IDs, canonical root containment, O_NOFOLLOW, regular-file checks and Linux descriptor-path revalidation constrain reads. Symlinks are omitted from directory trees. File operations recheck authorization and containment. These reduce path races; they are not an OS sandbox against a privileged local attacker.
@@ -66,7 +66,7 @@ This deployment supports one user, one gateway process and at most 20 paired age
 - Eight tabs, six chunks per tab; cache eviction is deliberate. Scroll history beyond cached data requires paging again. Tabs/presentation state are not persisted across page reloads. A full agent process restart invalidates opaque file IDs; reopen files from the tree.
 - Search stops after 100 results or 15 seconds and reports partial coverage. Queries are at most 256 characters. Regex mode supports **literal alternatives with | and optional ^/$ anchors only**, e.g. ^ERROR|timeout$. No quantifiers, groups, escapes, classes or wildcard syntax; this avoids catastrophic backtracking.
 - Polling every 500 ms detects inode replacement, size reduction and modification. A truncate-and-regrow between polls can be indistinguishable from an append. Replaced files must stay under an approved root. Paused and inactive tabs hold no watch subscription.
-- Up to 10,000 entries per directory, 50,000 indexed paths per agent, eight active agent operations/watches, twelve pending requests per browser, 128 gateway routes, 1 MiB frames and 2 MiB outbound queues. Slow consumers are disconnected instead of accumulating data. RPC deadlines are 20 seconds.
+- Up to 10,000 entries per directory, 50,000 indexed paths per agent, eight active operations and eight watches per agent, twelve pending requests per browser, 128 gateway routes, 1 MiB frames and 2 MiB outbound queues. Slow consumers are disconnected instead of accumulating data. RPC deadlines are 20 seconds.
 - Local root changes require an agent restart. Persistent credentials are intended for a trusted personal machine. The agent does not expose any listening port.
 
 ## Verify
