@@ -50,6 +50,10 @@ test("backward pages include a long complete line and EOF reads are empty", asyn
     );
     const before = await readChunk(f, e.id, 100001, 65536, "backward");
     assert.equal(before.content, "é".repeat(50000) + "\n");
+    await writeFile(dir + "/a", ("x".repeat(200000) + "\n").repeat(3));
+    const aligned = await readChunk(f, e.id, 1, 65536);
+    assert.equal(aligned.startOffset, 200001);
+    assert.equal(aligned.content, "x".repeat(200000) + "\n");
     await writeFile(dir + "/a", "x".repeat(300000) + "\n");
     await assert.rejects(readChunk(f, e.id), /Line exceeds/);
   } finally {

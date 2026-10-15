@@ -14,9 +14,25 @@ export async function readChunk(
     const size = stat.size;
     const backward = tail || direction === "backward";
     const end = tail ? size : Math.min(offset, size);
-    const start = backward
+    let start = backward
       ? Math.max(0, end - limitBytes - MAX_LINE)
       : Math.min(offset, size);
+    // Align first, then allocate the page so an offset inside a long line
+    // cannot consume the lookahead needed for the next complete line.
+    if (!backward && start > 0 && start < size) {
+      const prev = Buffer.alloc(1);
+      await h.read(prev, 0, 1, start - 1);
+      if (prev[0] !== 10) {
+        const alignment = Buffer.alloc(Math.min(MAX_LINE + 1, size - start));
+        const read = await h.read(alignment, 0, alignment.length, start);
+        const newline = alignment.subarray(0, read.bytesRead).indexOf(10);
+        if (newline < 0) {
+          if (start + read.bytesRead < size)
+            throw Error("Line exceeds 256 KiB limit");
+          start = size;
+        } else start += newline + 1;
+      }
+    }
     const b = Buffer.alloc(
       backward ? end - start : Math.min(size - start, limitBytes + MAX_LINE),
     );
@@ -38,18 +54,6 @@ export async function readChunk(
       }
       if (end < size && z && data[z - 1] !== 10) z = data.lastIndexOf(10) + 1;
     } else {
-      if (start > 0 && data.length) {
-        const prev = Buffer.alloc(1);
-        await h.read(prev, 0, 1, start - 1);
-        if (prev[0] !== 10) {
-          const newline = data.indexOf(10);
-          if (newline < 0) {
-            if (start + data.length < size)
-              throw Error("Line exceeds 256 KiB limit");
-            a = data.length;
-          } else a = newline + 1;
-        }
-      }
       const target = Math.min(data.length, a + limitBytes);
       if (target && data[target - 1] === 10) z = target;
       else {
