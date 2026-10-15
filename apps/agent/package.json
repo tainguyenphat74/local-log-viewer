@@ -1,1 +1,5 @@
-{"name":"@logview/agent","private":true,"type":"module"}
+{
+  "name": "@logview/agent",
+  "private": true,
+  "type": "module"
+}

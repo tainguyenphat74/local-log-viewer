@@ -1,2 +1,293 @@
 @import "tailwindcss";
-:root{font-family:Inter,ui-sans-serif,system-ui,sans-serif;color:#cbd5e1;background:#0b1018;font-size:14px;color-scheme:dark}*{box-sizing:border-box}body{margin:0}button,select,input{font:inherit;border:1px solid #2b384c;background:#141e2d;color:#dce5f2;border-radius:5px;padding:7px 10px}button{cursor:pointer}button:hover{background:#213049}button:disabled{opacity:.4;cursor:default}button:focus-visible,input:focus,select:focus{outline:2px solid #3b82f6;outline-offset:2px}.primary{background:#2563eb;border-color:#3b82f6;color:white}.app{height:100vh;display:flex;flex-direction:column}header{height:62px;flex-shrink:0;display:flex;gap:12px;align-items:center;border-bottom:1px solid #253044;padding:0 20px}.brand{font-weight:650;color:#eef4ff;font-size:17px;letter-spacing:-.4px}.connection{margin-left:auto;font-size:12px;color:#94a3b8}footer{font-size:12px;padding:8px 16px;border-top:1px solid #253044;color:#8292aa}.login{max-width:430px;margin:17vh auto;padding:24px}.login h1{font-size:30px;color:#f1f5f9;margin:32px 0 12px}.login p{color:#94a3b8;line-height:1.7}.login form{margin-top:28px}.login input{display:block;width:100%;margin:10px 0 18px}.login button{width:100%}.empty{margin:auto;padding:40px;max-width:700px;line-height:1.8}.empty h1{font-size:26px;color:#f1f5f9}.pair{padding:20px;background:#17243b;border-bottom:1px solid #334155}.pair code{display:block;overflow-wrap:anywhere;padding:12px 0;color:#93c5fd}.pair p{margin:0 0 10px}.error{padding:12px;background:#41232a;color:#fecaca}.workspace{display:flex;flex:1;min-height:0}aside{width:250px;flex-shrink:0;border-right:1px solid #253044;overflow:auto;padding:16px 10px;background:#0e1520}aside h2{text-transform:uppercase;letter-spacing:1.3px;font-size:11px;color:#8193ac;padding:0 8px;margin:6px 0 16px}aside button{background:transparent;border:0;text-align:left;width:100%;padding:7px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}aside .root{font-weight:600;color:#d5e3f5;margin-top:8px}.viewer{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0}.tabs{display:flex;border-bottom:1px solid #253044;overflow:auto;min-height:43px}.tab{display:flex;align-items:center;border-right:1px solid #253044;padding:0 6px}.tab.active{background:#172337;border-bottom:2px solid #3b82f6}.tab button{border:0;background:transparent;white-space:nowrap}.toolbar{display:flex;gap:8px;align-items:center;padding:12px;border-bottom:1px solid #253044}.toolbar input{min-width:100px;flex:1}.toolbar label{white-space:nowrap;font-size:12px}.viewport{flex:1;overflow:auto;min-height:0;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12px;line-height:24px}.line{white-space:pre;display:flex;padding:0 16px}.line:hover{background:#172131}.offset{color:#506078;display:inline-block;width:85px;flex-shrink:0;user-select:none}.severity-ERROR,.severity-FATAL{color:#f5a4ac}.severity-WARN{color:#e4c382}.severity-DEBUG,.severity-TRACE{color:#7c8fa9}.results{max-height:180px;overflow:auto;border-bottom:1px solid #334155}.results button{display:block;text-align:left;width:100%;border:0;border-radius:0;font-family:monospace;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.pagebar{display:flex;gap:10px;padding:8px 12px;align-items:center;font-size:12px;color:#8fa2bd}.pagebar span{margin-left:auto}.notice{padding:8px 12px;color:#8fa2bd;font-size:12px}@media(max-width:800px){header{gap:6px;padding:8px;height:auto;flex-wrap:wrap}aside{width:180px}.toolbar{flex-wrap:wrap}.connection{margin-left:0}}
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+  color: #cbd5e1;
+  background: #0b1018;
+  font-size: 14px;
+  color-scheme: dark;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+}
+button,
+select,
+input {
+  font: inherit;
+  border: 1px solid #2b384c;
+  background: #141e2d;
+  color: #dce5f2;
+  border-radius: 5px;
+  padding: 7px 10px;
+}
+button {
+  cursor: pointer;
+}
+button:hover {
+  background: #213049;
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+button:focus-visible,
+input:focus,
+select:focus {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+.primary {
+  background: #2563eb;
+  border-color: #3b82f6;
+  color: white;
+}
+.app {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+header {
+  height: 62px;
+  flex-shrink: 0;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  border-bottom: 1px solid #253044;
+  padding: 0 20px;
+}
+.brand {
+  font-weight: 650;
+  color: #eef4ff;
+  font-size: 17px;
+  letter-spacing: -0.4px;
+}
+.connection {
+  margin-left: auto;
+  font-size: 12px;
+  color: #94a3b8;
+}
+footer {
+  font-size: 12px;
+  padding: 8px 16px;
+  border-top: 1px solid #253044;
+  color: #8292aa;
+}
+.login {
+  max-width: 430px;
+  margin: 17vh auto;
+  padding: 24px;
+}
+.login h1 {
+  font-size: 30px;
+  color: #f1f5f9;
+  margin: 32px 0 12px;
+}
+.login p {
+  color: #94a3b8;
+  line-height: 1.7;
+}
+.login form {
+  margin-top: 28px;
+}
+.login input {
+  display: block;
+  width: 100%;
+  margin: 10px 0 18px;
+}
+.login button {
+  width: 100%;
+}
+.empty {
+  margin: auto;
+  padding: 40px;
+  max-width: 700px;
+  line-height: 1.8;
+}
+.empty h1 {
+  font-size: 26px;
+  color: #f1f5f9;
+}
+.pair {
+  padding: 20px;
+  background: #17243b;
+  border-bottom: 1px solid #334155;
+}
+.pair code {
+  display: block;
+  overflow-wrap: anywhere;
+  padding: 12px 0;
+  color: #93c5fd;
+}
+.pair p {
+  margin: 0 0 10px;
+}
+.error {
+  padding: 12px;
+  background: #41232a;
+  color: #fecaca;
+}
+.workspace {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+aside {
+  width: 250px;
+  flex-shrink: 0;
+  border-right: 1px solid #253044;
+  overflow: auto;
+  padding: 16px 10px;
+  background: #0e1520;
+}
+aside h2 {
+  text-transform: uppercase;
+  letter-spacing: 1.3px;
+  font-size: 11px;
+  color: #8193ac;
+  padding: 0 8px;
+  margin: 6px 0 16px;
+}
+aside button {
+  background: transparent;
+  border: 0;
+  text-align: left;
+  width: 100%;
+  padding: 7px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+aside .root {
+  font-weight: 600;
+  color: #d5e3f5;
+  margin-top: 8px;
+}
+.viewer {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+.tabs {
+  display: flex;
+  border-bottom: 1px solid #253044;
+  overflow: auto;
+  min-height: 43px;
+}
+.tab {
+  display: flex;
+  align-items: center;
+  border-right: 1px solid #253044;
+  padding: 0 6px;
+}
+.tab.active {
+  background: #172337;
+  border-bottom: 2px solid #3b82f6;
+}
+.tab button {
+  border: 0;
+  background: transparent;
+  white-space: nowrap;
+}
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid #253044;
+}
+.toolbar input {
+  min-width: 100px;
+  flex: 1;
+}
+.toolbar label {
+  white-space: nowrap;
+  font-size: 12px;
+}
+.viewport {
+  flex: 1;
+  overflow: auto;
+  min-height: 0;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 12px;
+  line-height: 24px;
+}
+.line {
+  white-space: pre;
+  display: flex;
+  padding: 0 16px;
+}
+.line:hover {
+  background: #172131;
+}
+.offset {
+  color: #506078;
+  display: inline-block;
+  width: 85px;
+  flex-shrink: 0;
+  user-select: none;
+}
+.severity-ERROR,
+.severity-FATAL {
+  color: #f5a4ac;
+}
+.severity-WARN {
+  color: #e4c382;
+}
+.severity-DEBUG,
+.severity-TRACE {
+  color: #7c8fa9;
+}
+.results {
+  max-height: 180px;
+  overflow: auto;
+  border-bottom: 1px solid #334155;
+}
+.results button {
+  display: block;
+  text-align: left;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  font-family: monospace;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pagebar {
+  display: flex;
+  gap: 10px;
+  padding: 8px 12px;
+  align-items: center;
+  font-size: 12px;
+  color: #8fa2bd;
+}
+.pagebar span {
+  margin-left: auto;
+}
+.notice {
+  padding: 8px 12px;
+  color: #8fa2bd;
+  font-size: 12px;
+}
+@media (max-width: 800px) {
+  header {
+    gap: 6px;
+    padding: 8px;
+    height: auto;
+    flex-wrap: wrap;
+  }
+  aside {
+    width: 180px;
+  }
+  .toolbar {
+    flex-wrap: wrap;
+  }
+  .connection {
+    margin-left: 0;
+  }
+}

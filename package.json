@@ -1,1 +1,41 @@
-{"name":"local-log-viewer","private":true,"type":"module","scripts":{"build":"tsc --noEmit && vite build apps/web","typecheck":"tsc --noEmit","test":"tsx --test tests/*.test.ts","agent":"tsx apps/agent/src/cli.ts","gateway":"tsx apps/gateway/src/main.ts","dev":"vite apps/web --host 127.0.0.1"},"dependencies":{"@tanstack/react-virtual":"^3.13.12","react":"^19.1.0","react-dom":"^19.1.0","ws":"^8.18.3","zod":"^3.25.76"},"devDependencies":{"@types/node":"^22.18.0","@types/react":"^19.1.0","@types/react-dom":"^19.1.0","@types/ws":"^8.18.1","@vitejs/plugin-react":"^4.7.0","typescript":"^5.9.2","tsx":"^4.20.5","vite":"^6.3.6","tailwindcss":"^4.1.13","@tailwindcss/vite":"^4.1.13","@playwright/test":"^1.55.0"}}
+{
+  "name": "local-log-viewer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --noEmit && vite build apps/web",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts",
+    "agent": "tsx apps/agent/src/cli.ts",
+    "gateway": "tsx apps/gateway/src/main.ts",
+    "dev": "vite apps/web --host 127.0.0.1",
+    "test:browser": "playwright test",
+    "format": "prettier --write apps packages tests *.ts *.json",
+    "format:check": "prettier --check apps packages tests *.ts *.json"
+  },
+  "dependencies": {
+    "@tanstack/react-virtual": "^3.13.12",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "ws": "^8.18.3",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@tailwindcss/vite": "^4.1.13",
+    "@types/node": "^22.18.0",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^4.7.0",
+    "prettier": "^3.9.10",
+    "tailwindcss": "^4.1.13",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2",
+    "vite": "^6.3.6"
+  },
+  "packageManager": "pnpm@10.34.7",
+  "engines": {
+    "node": ">=22 <23"
+  }
+}

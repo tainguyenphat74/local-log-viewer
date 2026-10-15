@@ -1,1 +1,5 @@
-{"name":"@logview/web","private":true,"type":"module"}
+{
+  "name": "@logview/web",
+  "private": true,
+  "type": "module"
+}
