@@ -58,6 +58,19 @@ test("login, pair, browse, tabs, search, paging, live and reconnect", async ({
     .getByRole("button", { name: "≡ application.log", exact: true })
     .click();
   await expect(page.getByLabel("Log content")).toContainText("INFO café");
+  await page.getByLabel("Log content").evaluate((el) => {
+    el.scrollTop = 600;
+  });
+  await expect
+    .poll(() => page.getByLabel("Log content").evaluate((el) => el.scrollTop))
+    .toBe(600);
+  await page.getByRole("button", { name: "≡ worker.log", exact: true }).click();
+  await page
+    .getByRole("button", { name: "application.log", exact: true })
+    .click();
+  await expect
+    .poll(() => page.getByLabel("Log content").evaluate((el) => el.scrollTop))
+    .toBe(600);
   await page.getByLabel("Search logs").fill("browser needle");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await page.getByLabel("Search results").getByRole("button").click();
@@ -77,6 +90,21 @@ test("login, pair, browse, tabs, search, paging, live and reconnect", async ({
   await appendFile(dir + "/application.log", "WARN live browser append\n");
   await expect(page.getByLabel("Log content")).toContainText(
     "live browser append",
+  );
+  const messages: any[] = [];
+  agent.socket?.on("message", (raw) =>
+    messages.push(JSON.parse(raw.toString())),
+  );
+  await page.getByRole("button", { name: "worker.log", exact: true }).click();
+  await expect
+    .poll(() => messages.filter((m) => m.type === "cancel").length)
+    .toBeGreaterThan(0);
+  await appendFile(dir + "/application.log", "INFO inactive tab append\n");
+  await page
+    .getByRole("button", { name: "application.log", exact: true })
+    .click();
+  await expect(page.getByLabel("Log content")).toContainText(
+    "inactive tab append",
   );
   agent.socket?.terminate();
   await expect(page.getByLabel("Log content")).toContainText(

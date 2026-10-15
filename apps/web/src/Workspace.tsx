@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Client } from "./client";
 type Entry = { id: string; name: string; directory: boolean };
@@ -133,10 +133,14 @@ export function Workspace({
     searchTask.current?.cancel();
     setSearching(false);
   }, [active]);
-  const allRows = rows(tab?.chunks || []),
-    filtered = allRows.filter(
-      ([, line]) => !tab?.filter || severity(line) === tab.filter,
-    );
+  const allRows = useMemo(() => rows(tab?.chunks || []), [tab?.chunks]);
+  const filtered = useMemo(
+    () =>
+      allRows.filter(
+        ([, line]) => !tab?.filter || severity(line) === tab.filter,
+      ),
+    [allRows, tab?.filter],
+  );
   const virtual = useVirtualizer({
     count: filtered.length,
     getScrollElement: () => viewport.current,
