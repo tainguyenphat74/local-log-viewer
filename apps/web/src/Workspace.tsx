@@ -1,49 +1,564 @@
-import React,{useEffect,useRef,useState} from 'react';
-import {useVirtualizer} from '@tanstack/react-virtual';
-import {Client} from './client';
-type Entry={id:string,name:string,directory:boolean};
-type Chunk={content:string,startOffset:number,nextOffset:number,size:number,eof:boolean,identity:string};
-type Tab={id:string,name:string,chunks:Chunk[],scroll:number,follow:boolean,query:string,regex:boolean,filter:string};
-const severity=(s:string)=>/\b(TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\b/.exec(s)?.[1]||'INFO';
-function rows(chunks:Chunk[]){const map=new Map<number,string>();for(const c of chunks){for(const key of map.keys())if(key>=c.startOffset&&key<c.nextOffset)map.delete(key);let offset=c.startOffset;const lines=c.content.split('\n');for(let i=0;i<lines.length;i++){if(i===lines.length-1&&!lines[i])break;map.set(offset,lines[i]);offset+=new TextEncoder().encode(lines[i]).length+1;}}return [...map].sort((a,b)=>a[0]-b[0]);}
-function Tree({entries,rootId,client,agentId,open,onError,depth=0}:{entries:Entry[],rootId:string,client:Client,agentId:string,open:(e:Entry)=>void,onError:(e:string)=>void,depth?:number}){
- const [children,setChildren]=useState<Record<string,Entry[]>>({}),[expanded,setExpanded]=useState<Record<string,boolean>>({});
- return <>{entries.map(e=><React.Fragment key={e.id}><button style={{paddingLeft:8+depth*14}} title={e.name} onClick={async()=>{if(!e.directory)return open(e);try{const result=await client.request(agentId,'file.list',{rootId,directoryId:e.id}).promise;setChildren(v=>({...v,[e.id]:result}));setExpanded(v=>({...v,[e.id]:!v[e.id]}));}catch(err){onError(String(err));}}}>{e.directory?(expanded[e.id]?'▾ ':'▸ '):'≡ '}{e.name}</button>{expanded[e.id]&&children[e.id]&&<Tree {...{rootId,client,agentId,open,onError}} entries={children[e.id]} depth={depth+1}/>}</React.Fragment>)}</>;
+import React, { useEffect, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { Client } from "./client";
+type Entry = { id: string; name: string; directory: boolean };
+type Chunk = {
+  content: string;
+  startOffset: number;
+  nextOffset: number;
+  size: number;
+  eof: boolean;
+  identity: string;
+};
+type Tab = {
+  id: string;
+  name: string;
+  chunks: Chunk[];
+  scroll: number;
+  follow: boolean;
+  query: string;
+  regex: boolean;
+  filter: string;
+};
+const severity = (s: string) =>
+  /\b(TRACE|DEBUG|INFO|WARN|ERROR|FATAL)\b/.exec(s)?.[1] || "INFO";
+function rows(chunks: Chunk[]) {
+  const map = new Map<number, string>();
+  for (const c of chunks) {
+    for (const key of map.keys())
+      if (key >= c.startOffset && key < c.nextOffset) map.delete(key);
+    let offset = c.startOffset;
+    const lines = c.content.split("\n");
+    for (let i = 0; i < lines.length; i++) {
+      if (i === lines.length - 1 && !lines[i]) break;
+      map.set(offset, lines[i]);
+      offset += new TextEncoder().encode(lines[i]).length + 1;
+    }
+  }
+  return [...map].sort((a, b) => a[0] - b[0]);
 }
-export function Workspace({client,agentId,online}:{client:Client,agentId:string,online:boolean}){
- const [roots,setRoots]=useState<{id:string,name:string}[]>([]),[trees,setTrees]=useState<Record<string,Entry[]>>({}),[tabs,setTabs]=useState<Tab[]>([]),[active,setActive]=useState(''),[error,setError]=useState(''),[busy,setBusy]=useState(false),[results,setResults]=useState<{offset:number,text:string}[]>([]),[searchInfo,setSearchInfo]=useState(''),[searching,setSearching]=useState(false);
- const viewport=useRef<HTMLDivElement>(null),searchInput=useRef<HTMLInputElement>(null),searchTask=useRef<ReturnType<Client['request']>|undefined>(undefined),loading=useRef(false),activeRef=useRef(active);
- activeRef.current=active;
- const tab=tabs.find(t=>t.id===active);
- const update=(id:string,fn:(t:Tab)=>Tab)=>setTabs(v=>v.map(t=>t.id===id?fn(t):t));
- useEffect(()=>{if(!online)return;client.request(agentId,'folder.list',{}).promise.then(setRoots).catch(e=>setError(String(e)));},[client,agentId,online]);
- useEffect(()=>{setResults([]);setSearchInfo('');searchTask.current?.cancel();setSearching(false);},[active]);
- const allRows=rows(tab?.chunks||[]),filtered=allRows.filter(([,line])=>!tab?.filter||severity(line)===tab.filter);
- const virtual=useVirtualizer({count:filtered.length,getScrollElement:()=>viewport.current,estimateSize:()=>24,overscan:15});
- useEffect(()=>{if(viewport.current)viewport.current.scrollTop=tab?.scroll||0;},[active]);
- useEffect(()=>{if(tab?.follow&&viewport.current)viewport.current.scrollTop=viewport.current.scrollHeight;},[tab?.chunks,tab?.follow]);
- function merge(id:string,p:Chunk,mode:'replace'|'before'|'after'){update(id,t=>({...t,chunks:mode==='replace'?[p]:mode==='before'?[p,...t.chunks].slice(0,6):[...t.chunks,p].slice(-6)}));}
- async function open(entry:Entry){if(tabs.some(t=>t.id===entry.id)){setActive(entry.id);return;}if(tabs.length>=8){setError('Close a tab before opening another (8 tab limit).');return;}setBusy(true);try{const p=await client.request(agentId,'file.tail',{fileId:entry.id}).promise;setTabs(v=>[...v,{id:entry.id,name:entry.name,chunks:[p],scroll:0,follow:false,query:'',regex:false,filter:''}]);setActive(entry.id);}catch(e){setError(String(e));}finally{setBusy(false);}}
- async function page(direction:'forward'|'backward',offset?:number){if(!tab||loading.current)return;loading.current=true;setBusy(true);const id=tab.id;const start=Math.min(...tab.chunks.map(c=>c.startOffset)),end=Math.max(...tab.chunks.map(c=>c.nextOffset));try{
- const p=await client.request(agentId,'file.read',{fileId:id,offset:offset??(direction==='backward'?start:end),direction,limitBytes:65536}).promise;
- const previous=viewport.current?.scrollTop||0;
- merge(id,p,offset!==undefined?'replace':direction==='backward'?'before':'after');
- if(offset!==undefined){update(id,t=>({...t,follow:false,scroll:0}));requestAnimationFrame(()=>viewport.current?.scrollTo({top:0}));}
- else if(direction==='backward')requestAnimationFrame(()=>viewport.current?.scrollTo({top:previous+rows([p]).length*24}));
- }catch(e){setError(String(e));}finally{loading.current=false;setBusy(false);}}
- useEffect(()=>{if(!online||!tab?.follow)return;const id=tab.id;
- const task=client.request(agentId,'file.watch.start',{fileId:id},p=>{if(p.error){setError(p.error);return;}merge(id,p,p.reset?'replace':'after');});task.promise.catch(e=>{if(String(e)!=='Error: Cancelled')setError(String(e));});return()=>task.cancel();
- },[client,agentId,online,active,tab?.follow]);
- async function runSearch(e?:React.FormEvent){e?.preventDefault();if(!tab?.query)return;searchTask.current?.cancel();setSearching(true);setResults([]);const id=tab.id;const task=client.request(agentId,'file.search',{fileId:id,query:tab.query,regex:tab.regex});searchTask.current=task;try{const p=await task.promise;if(activeRef.current!==id)return;setResults(p.results);setSearchInfo(p.results.length+' matches'+(p.truncated?' · bounded search limit reached':'')+(p.skippedLines?' · '+p.skippedLines+' oversized lines skipped':''));}catch(e){if(String(e)!=='Error: Cancelled')setError(String(e));}finally{if(searchTask.current===task)setSearching(false);}}
- useEffect(()=>{const key=(e:KeyboardEvent)=>{if((e.ctrlKey||e.metaKey)&&e.key==='f'){e.preventDefault();searchInput.current?.focus();}if(e.key==='Escape'){searchTask.current?.cancel();setSearching(false);setResults([]);}if(e.key===' '&&!(e.target instanceof HTMLInputElement)&&tab){e.preventDefault();update(tab.id,t=>({...t,follow:!t.follow}));}};window.addEventListener('keydown',key);return()=>window.removeEventListener('keydown',key);},[tab]);
- const first=tab?Math.min(...tab.chunks.map(c=>c.startOffset)):0,last=tab?Math.max(...tab.chunks.map(c=>c.nextOffset)):0,size=tab?.chunks.at(-1)?.size||0;
- return <div className="workspace"><aside><h2>Approved folders</h2>{roots.map(r=><div key={r.id}><button className="root" onClick={async()=>{try{if(trees[r.id]){await client.request(agentId,'folder.remove',{rootId:r.id}).promise;setTrees(v=>{const n={...v};delete n[r.id];return n;});}else{await client.request(agentId,'folder.add',{rootId:r.id}).promise;setTrees(v=>({...v,[r.id]:[]}));const entries=await client.request(agentId,'file.list',{rootId:r.id}).promise;setTrees(v=>({...v,[r.id]:entries}));}}catch(e){setError(String(e));}}}>{trees[r.id]?'▾':'▸'} {r.name}</button>{trees[r.id]&&<Tree entries={trees[r.id]} rootId={r.id} {...{client,agentId,open}} onError={setError}/>}</div>)}<p className="notice">Add or revoke folders using the local CLI. Click a folder to show or hide it here.</p></aside>
- <main className="viewer"><nav className="tabs" aria-label="Open files">{tabs.map(t=><div className={'tab '+(t.id===active?'active':'')} key={t.id}><button onClick={()=>setActive(t.id)}>{t.name}</button><button aria-label={'Close '+t.name} onClick={()=>{setTabs(v=>v.filter(x=>x.id!==t.id));if(active===t.id)setActive(tabs.find(x=>x.id!==t.id)?.id||'');}}>×</button></div>)}</nav>
- {error&&<div role="alert" className="error"><button onClick={()=>setError('')}>×</button> {error}</div>}
- {tab?<><form className="toolbar" onSubmit={runSearch}><input ref={searchInput} aria-label="Search logs" placeholder="Search file…  ⌘/Ctrl F" value={tab.query} onChange={e=>update(tab.id,t=>({...t,query:e.target.value}))}/><label title="Literal alternatives (|), ^ and $ anchors only"><input type="checkbox" checked={tab.regex} onChange={e=>update(tab.id,t=>({...t,regex:e.target.checked}))}/> Regex</label><button disabled={searching||!tab.query}>Search</button>{searching&&<button type="button" onClick={()=>{searchTask.current?.cancel();setSearching(false);}}>Cancel</button>}<select aria-label="Severity" value={tab.filter} onChange={e=>update(tab.id,t=>({...t,filter:e.target.value}))}><option value="">All levels</option>{['TRACE','DEBUG','INFO','WARN','ERROR','FATAL'].map(s=><option key={s}>{s}</option>)}</select><button type="button" className={tab.follow?'primary':''} onClick={()=>update(tab.id,t=>({...t,follow:!t.follow}))}>{tab.follow?'Pause live':'Follow live'}</button></form>
- {searchInfo&&<div className="notice">{searchInfo}</div>}{results.length>0&&<div className="results" aria-label="Search results">{results.map(r=><button key={r.offset} onClick={()=>void page('forward',r.offset)}>{r.offset} · {r.text}</button>)}</div>}
- <div className="pagebar"><button disabled={busy||first===0} onClick={()=>{update(tab.id,t=>({...t,follow:false}));void page('backward');}}>↑ Earlier</button><button disabled={busy||last>=size} onClick={()=>void page('forward')}>Later ↓</button><button disabled={busy} onClick={async()=>{try{merge(tab.id,await client.request(agentId,'file.tail',{fileId:tab.id}).promise,'replace');}catch(e){setError(String(e));}}}>Jump to end</button><span>{busy?'Loading…':tab.follow?'Live · Space to pause':'Paused · Space to follow'} · bytes {first.toLocaleString()}–{last.toLocaleString()} / {size.toLocaleString()}</span></div>
- <div className="viewport" ref={viewport} aria-label="Log content" onScroll={e=>{const el=e.currentTarget;update(tab.id,t=>({...t,scroll:el.scrollTop}));if(!tab.follow&&!loading.current){if(el.scrollTop<60&&first>0)void page('backward');else if(el.scrollHeight-el.scrollTop-el.clientHeight<100&&last<size)void page('forward');}}}><div style={{height:virtual.getTotalSize(),position:'relative',minWidth:'100%'}}>{virtual.getVirtualItems().map(item=>{const [offset,line]=filtered[item.index];return <div key={offset} className={'line severity-'+severity(line)} style={{position:'absolute',top:0,left:0,transform:'translateY('+item.start+'px)',height:24}}><span className="offset">{offset}</span><span>{line}</span></div>;})}</div></div>
- <div className="notice">{filtered.length.toLocaleString()} loaded lines · {tab.chunks.length}/6 cached chunks · search scans the file on your agent</div>
- </>:<section className="empty"><h1>Find the signal.</h1><p>Expand an approved folder and open a log. Each tab keeps its own position; only the active tab follows live updates.</p>{busy&&<p>Opening log…</p>}</section>}</main></div>;
+function Tree({
+  entries,
+  rootId,
+  client,
+  agentId,
+  open,
+  onError,
+  depth = 0,
+}: {
+  entries: Entry[];
+  rootId: string;
+  client: Client;
+  agentId: string;
+  open: (e: Entry) => void;
+  onError: (e: string) => void;
+  depth?: number;
+}) {
+  const [children, setChildren] = useState<Record<string, Entry[]>>({}),
+    [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  return (
+    <>
+      {entries.map((e) => (
+        <React.Fragment key={e.id}>
+          <button
+            style={{ paddingLeft: 8 + depth * 14 }}
+            title={e.name}
+            onClick={async () => {
+              if (!e.directory) return open(e);
+              try {
+                const result = await client.request(agentId, "file.list", {
+                  rootId,
+                  directoryId: e.id,
+                }).promise;
+                setChildren((v) => ({ ...v, [e.id]: result }));
+                setExpanded((v) => ({ ...v, [e.id]: !v[e.id] }));
+              } catch (err) {
+                onError(String(err));
+              }
+            }}
+          >
+            {e.directory ? (expanded[e.id] ? "▾ " : "▸ ") : "≡ "}
+            {e.name}
+          </button>
+          {expanded[e.id] && children[e.id] && (
+            <Tree
+              {...{ rootId, client, agentId, open, onError }}
+              entries={children[e.id]}
+              depth={depth + 1}
+            />
+          )}
+        </React.Fragment>
+      ))}
+    </>
+  );
+}
+export function Workspace({
+  client,
+  agentId,
+  online,
+}: {
+  client: Client;
+  agentId: string;
+  online: boolean;
+}) {
+  const [roots, setRoots] = useState<{ id: string; name: string }[]>([]),
+    [trees, setTrees] = useState<Record<string, Entry[]>>({}),
+    [tabs, setTabs] = useState<Tab[]>([]),
+    [active, setActive] = useState(""),
+    [error, setError] = useState(""),
+    [busy, setBusy] = useState(false),
+    [results, setResults] = useState<{ offset: number; text: string }[]>([]),
+    [searchInfo, setSearchInfo] = useState(""),
+    [searching, setSearching] = useState(false);
+  useEffect(() => () => searchTask.current?.cancel(), []);
+  const viewport = useRef<HTMLDivElement>(null),
+    searchInput = useRef<HTMLInputElement>(null),
+    searchTask = useRef<ReturnType<Client["request"]> | undefined>(undefined),
+    loading = useRef(false),
+    activeRef = useRef(active);
+  activeRef.current = active;
+  const tab = tabs.find((t) => t.id === active);
+  const update = (id: string, fn: (t: Tab) => Tab) =>
+    setTabs((v) => v.map((t) => (t.id === id ? fn(t) : t)));
+  useEffect(() => {
+    if (!online) return;
+    client
+      .request(agentId, "folder.list", {})
+      .promise.then(setRoots)
+      .catch((e) => setError(String(e)));
+  }, [client, agentId, online]);
+  useEffect(() => {
+    setResults([]);
+    setSearchInfo("");
+    searchTask.current?.cancel();
+    setSearching(false);
+  }, [active]);
+  const allRows = rows(tab?.chunks || []),
+    filtered = allRows.filter(
+      ([, line]) => !tab?.filter || severity(line) === tab.filter,
+    );
+  const virtual = useVirtualizer({
+    count: filtered.length,
+    getScrollElement: () => viewport.current,
+    estimateSize: () => 24,
+    overscan: 15,
+  });
+  useEffect(() => {
+    if (viewport.current) viewport.current.scrollTop = tab?.scroll || 0;
+  }, [active]);
+  useEffect(() => {
+    if (tab?.follow && viewport.current)
+      viewport.current.scrollTop = viewport.current.scrollHeight;
+  }, [tab?.chunks, tab?.follow]);
+  function merge(id: string, p: Chunk, mode: "replace" | "before" | "after") {
+    update(id, (t) => ({
+      ...t,
+      chunks:
+        mode === "replace"
+          ? [p]
+          : mode === "before"
+            ? [p, ...t.chunks].slice(0, 6)
+            : [...t.chunks, p].slice(-6),
+    }));
+  }
+  async function open(entry: Entry) {
+    if (tabs.some((t) => t.id === entry.id)) {
+      setActive(entry.id);
+      return;
+    }
+    if (tabs.length >= 8) {
+      setError("Close a tab before opening another (8 tab limit).");
+      return;
+    }
+    setBusy(true);
+    try {
+      const p = await client.request(agentId, "file.tail", { fileId: entry.id })
+        .promise;
+      setTabs((v) => [
+        ...v,
+        {
+          id: entry.id,
+          name: entry.name,
+          chunks: [p],
+          scroll: 0,
+          follow: false,
+          query: "",
+          regex: false,
+          filter: "",
+        },
+      ]);
+      setActive(entry.id);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function page(direction: "forward" | "backward", offset?: number) {
+    if (!tab || loading.current) return;
+    loading.current = true;
+    setBusy(true);
+    const id = tab.id;
+    const start = Math.min(...tab.chunks.map((c) => c.startOffset)),
+      end = Math.max(...tab.chunks.map((c) => c.nextOffset));
+    try {
+      const p = await client.request(agentId, "file.read", {
+        fileId: id,
+        offset: offset ?? (direction === "backward" ? start : end),
+        direction,
+        limitBytes: 65536,
+      }).promise;
+      const previous = viewport.current?.scrollTop || 0;
+      merge(
+        id,
+        p,
+        offset !== undefined
+          ? "replace"
+          : direction === "backward"
+            ? "before"
+            : "after",
+      );
+      if (offset !== undefined) {
+        update(id, (t) => ({ ...t, follow: false, scroll: 0 }));
+        requestAnimationFrame(() => viewport.current?.scrollTo({ top: 0 }));
+      } else if (direction === "backward")
+        requestAnimationFrame(() =>
+          viewport.current?.scrollTo({ top: previous + rows([p]).length * 24 }),
+        );
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      loading.current = false;
+      setBusy(false);
+    }
+  }
+  useEffect(() => {
+    if (!online || !tab?.follow) return;
+    const id = tab.id;
+    const task = client.request(
+      agentId,
+      "file.watch.start",
+      { fileId: id },
+      (p) => {
+        if (p.error) {
+          setError(p.error);
+          return;
+        }
+        merge(id, p, p.reset ? "replace" : "after");
+      },
+    );
+    task.promise.catch((e) => {
+      if (String(e) !== "Error: Cancelled") setError(String(e));
+    });
+    return () => task.cancel();
+  }, [client, agentId, online, active, tab?.follow]);
+  async function runSearch(e?: React.FormEvent) {
+    e?.preventDefault();
+    if (!tab?.query) return;
+    searchTask.current?.cancel();
+    setSearching(true);
+    setResults([]);
+    const id = tab.id;
+    const task = client.request(agentId, "file.search", {
+      fileId: id,
+      query: tab.query,
+      regex: tab.regex,
+    });
+    searchTask.current = task;
+    try {
+      const p = await task.promise;
+      if (activeRef.current !== id) return;
+      setResults(p.results);
+      setSearchInfo(
+        p.results.length +
+          " matches" +
+          (p.truncated ? " · bounded search limit reached" : "") +
+          (p.skippedLines
+            ? " · " + p.skippedLines + " oversized lines skipped"
+            : ""),
+      );
+    } catch (e) {
+      if (String(e) !== "Error: Cancelled") setError(String(e));
+    } finally {
+      if (searchTask.current === task) setSearching(false);
+    }
+  }
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        searchInput.current?.focus();
+      }
+      if (e.key === "Escape") {
+        searchTask.current?.cancel();
+        setSearching(false);
+        setResults([]);
+      }
+      if (e.key === " " && !(e.target instanceof HTMLInputElement) && tab) {
+        e.preventDefault();
+        update(tab.id, (t) => ({ ...t, follow: !t.follow }));
+      }
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  }, [tab]);
+  const first = tab ? Math.min(...tab.chunks.map((c) => c.startOffset)) : 0,
+    last = tab ? Math.max(...tab.chunks.map((c) => c.nextOffset)) : 0,
+    size = tab?.chunks.at(-1)?.size || 0;
+  return (
+    <div className="workspace">
+      <aside>
+        <h2>Approved folders</h2>
+        {roots.map((r) => (
+          <div key={r.id}>
+            <button
+              className="root"
+              onClick={async () => {
+                try {
+                  if (trees[r.id]) {
+                    await client.request(agentId, "folder.remove", {
+                      rootId: r.id,
+                    }).promise;
+                    setTrees((v) => {
+                      const n = { ...v };
+                      delete n[r.id];
+                      return n;
+                    });
+                  } else {
+                    await client.request(agentId, "folder.add", {
+                      rootId: r.id,
+                    }).promise;
+                    setTrees((v) => ({ ...v, [r.id]: [] }));
+                    const entries = await client.request(agentId, "file.list", {
+                      rootId: r.id,
+                    }).promise;
+                    setTrees((v) => ({ ...v, [r.id]: entries }));
+                  }
+                } catch (e) {
+                  setError(String(e));
+                }
+              }}
+            >
+              {trees[r.id] ? "▾" : "▸"} {r.name}
+            </button>
+            {trees[r.id] && (
+              <Tree
+                entries={trees[r.id]}
+                rootId={r.id}
+                {...{ client, agentId, open }}
+                onError={setError}
+              />
+            )}
+          </div>
+        ))}
+        <p className="notice">
+          Add or revoke folders using the local CLI. Click a folder to show or
+          hide it here.
+        </p>
+      </aside>
+      <main className="viewer">
+        <nav className="tabs" aria-label="Open files">
+          {tabs.map((t) => (
+            <div
+              className={"tab " + (t.id === active ? "active" : "")}
+              key={t.id}
+            >
+              <button onClick={() => setActive(t.id)}>{t.name}</button>
+              <button
+                aria-label={"Close " + t.name}
+                onClick={() => {
+                  setTabs((v) => v.filter((x) => x.id !== t.id));
+                  if (active === t.id)
+                    setActive(tabs.find((x) => x.id !== t.id)?.id || "");
+                }}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+        </nav>
+        {error && (
+          <div role="alert" className="error">
+            <button onClick={() => setError("")}>×</button> {error}
+          </div>
+        )}
+        {tab ? (
+          <>
+            <form className="toolbar" onSubmit={runSearch}>
+              <input
+                ref={searchInput}
+                aria-label="Search logs"
+                placeholder="Search file…  ⌘/Ctrl F"
+                value={tab.query}
+                onChange={(e) =>
+                  update(tab.id, (t) => ({ ...t, query: e.target.value }))
+                }
+              />
+              <label title="Literal alternatives (|), ^ and $ anchors only">
+                <input
+                  type="checkbox"
+                  checked={tab.regex}
+                  onChange={(e) =>
+                    update(tab.id, (t) => ({ ...t, regex: e.target.checked }))
+                  }
+                />{" "}
+                Regex
+              </label>
+              <button disabled={searching || !tab.query}>Search</button>
+              {searching && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    searchTask.current?.cancel();
+                    setSearching(false);
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
+              <select
+                aria-label="Severity"
+                value={tab.filter}
+                onChange={(e) =>
+                  update(tab.id, (t) => ({ ...t, filter: e.target.value }))
+                }
+              >
+                <option value="">All levels</option>
+                {["TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL"].map(
+                  (s) => (
+                    <option key={s}>{s}</option>
+                  ),
+                )}
+              </select>
+              <button
+                type="button"
+                className={tab.follow ? "primary" : ""}
+                onClick={() =>
+                  update(tab.id, (t) => ({ ...t, follow: !t.follow }))
+                }
+              >
+                {tab.follow ? "Pause live" : "Follow live"}
+              </button>
+            </form>
+            {searchInfo && <div className="notice">{searchInfo}</div>}
+            {results.length > 0 && (
+              <div className="results" aria-label="Search results">
+                {results.map((r) => (
+                  <button
+                    key={r.offset}
+                    onClick={() => void page("forward", r.offset)}
+                  >
+                    {r.offset} · {r.text}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="pagebar">
+              <button
+                disabled={busy || first === 0}
+                onClick={() => {
+                  update(tab.id, (t) => ({ ...t, follow: false }));
+                  void page("backward");
+                }}
+              >
+                ↑ Earlier
+              </button>
+              <button
+                disabled={busy || last >= size}
+                onClick={() => void page("forward")}
+              >
+                Later ↓
+              </button>
+              <button
+                disabled={busy}
+                onClick={async () => {
+                  try {
+                    merge(
+                      tab.id,
+                      await client.request(agentId, "file.tail", {
+                        fileId: tab.id,
+                      }).promise,
+                      "replace",
+                    );
+                  } catch (e) {
+                    setError(String(e));
+                  }
+                }}
+              >
+                Jump to end
+              </button>
+              <span>
+                {busy
+                  ? "Loading…"
+                  : tab.follow
+                    ? "Live · Space to pause"
+                    : "Paused · Space to follow"}{" "}
+                · bytes {first.toLocaleString()}–{last.toLocaleString()} /{" "}
+                {size.toLocaleString()}
+              </span>
+            </div>
+            <div
+              className="viewport"
+              ref={viewport}
+              aria-label="Log content"
+              onScroll={(e) => {
+                const el = e.currentTarget;
+                update(tab.id, (t) => ({ ...t, scroll: el.scrollTop }));
+                if (!tab.follow && !loading.current) {
+                  if (el.scrollTop < 60 && first > 0) void page("backward");
+                  else if (
+                    el.scrollHeight - el.scrollTop - el.clientHeight < 100 &&
+                    last < size
+                  )
+                    void page("forward");
+                }
+              }}
+            >
+              <div
+                style={{
+                  height: virtual.getTotalSize(),
+                  position: "relative",
+                  minWidth: "100%",
+                }}
+              >
+                {virtual.getVirtualItems().map((item) => {
+                  const [offset, line] = filtered[item.index];
+                  return (
+                    <div
+                      key={offset}
+                      className={"line severity-" + severity(line)}
+                      style={{
+                        position: "absolute",
+                        top: 0,
+                        left: 0,
+                        transform: "translateY(" + item.start + "px)",
+                        height: 24,
+                      }}
+                    >
+                      <span className="offset">{offset}</span>
+                      <span>{line}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="notice">
+              {filtered.length.toLocaleString()} loaded lines ·{" "}
+              {tab.chunks.length}/6 cached chunks · search scans the file on
+              your agent
+            </div>
+          </>
+        ) : (
+          <section className="empty">
+            <h1>Find the signal.</h1>
+            <p>
+              Expand an approved folder and open a log. Each tab keeps its own
+              position; only the active tab follows live updates.
+            </p>
+            {busy && <p>Opening log…</p>}
+          </section>
+        )}
+      </main>
+    </div>
+  );
 }

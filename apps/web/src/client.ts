@@ -54,10 +54,12 @@ export class Client {
         if (msg.type === "error") {
           p.reject(Error(msg.payload.error));
           this.pending.delete(msg.requestId);
-          this.status(false);
-          setTimeout(() => {
-            if (ws.readyState === 1) this.status(true);
-          }, 1000);
+          if (/Agent (disconnected|offline)/.test(msg.payload.error)) {
+            this.status(false);
+            setTimeout(() => {
+              if (!this.stopped && ws.readyState === 1) this.status(true);
+            }, 1000);
+          }
         } else {
           p.resolve(msg.payload);
           if (!p.changed) this.pending.delete(msg.requestId);
