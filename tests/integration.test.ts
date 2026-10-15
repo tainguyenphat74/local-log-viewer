@@ -131,6 +131,19 @@ test("actual gateway and agent: auth, pairing, routing, browse/read/search/watch
     const entries = await rpc(a, "file.list", { rootId: "root" });
     const fileId = entries.find((e: any) => e.name === "fixture.log").id;
     assert.match((await rpc(a, "file.read", { fileId })).content, /café/);
+    await writeFile(dir + "/escaped.log", "\u0001".repeat(262143) + "\n");
+    const updatedEntries = await rpc(a, "file.list", { rootId: "root" });
+    const escapedId = updatedEntries.find(
+      (e: any) => e.name === "escaped.log",
+    ).id;
+    const originalSocket = agent.socket;
+    await assert.rejects(
+      rpc(a, "file.read", { fileId: escapedId, limitBytes: 262144 }),
+      /Response exceeds encoded message limit/,
+    );
+    assert.equal(agent.socket, originalSocket);
+    assert.equal(agent.socket?.readyState, WebSocket.OPEN);
+    assert.match((await rpc(a, "file.read", { fileId })).content, /café/);
     assert.equal(
       (await rpc(a, "file.search", { fileId, query: "ERROR" })).results[0]
         .offset,

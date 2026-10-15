@@ -49,11 +49,20 @@ export function startAgent(config: Config) {
     const send = (requestId: string, type: string, payload: unknown) => {
       if (ws.readyState !== WebSocket.OPEN) return;
       const data = JSON.stringify({ requestId, type, payload });
-      if (
-        ws.bufferedAmount > 2 * MAX_FRAME ||
-        Buffer.byteLength(data) > MAX_FRAME
-      ) {
+      if (ws.bufferedAmount > 2 * MAX_FRAME) {
         ws.close(1009);
+        return;
+      }
+      if (Buffer.byteLength(data) > MAX_FRAME) {
+        watches.get(requestId)?.();
+        watches.delete(requestId);
+        ws.send(
+          JSON.stringify({
+            requestId,
+            type: "error",
+            payload: { error: "Response exceeds encoded message limit" },
+          }),
+        );
         return;
       }
       ws.send(data);
