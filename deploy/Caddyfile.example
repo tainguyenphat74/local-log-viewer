@@ -1,0 +1,5 @@
+# Replace the hostname; set LOGVIEW_ORIGIN=https://logs.example.com.
+# Caddy automatically supplies HTTPS and forwards WebSocket upgrades.
+logs.example.com {
+    reverse_proxy 127.0.0.1:8787
+}

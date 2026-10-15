@@ -1,0 +1,27 @@
+services:
+  gateway:
+    build: .
+    environment:
+      LOGVIEW_PASSWORD: ${LOGVIEW_PASSWORD:?Set a unique LOGVIEW_PASSWORD}
+      LOGVIEW_ORIGIN: ${LOGVIEW_ORIGIN:-http://127.0.0.1:8787}
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - gateway-state:/data
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8787/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+volumes:
+  gateway-state:
