@@ -6,8 +6,8 @@ import { once } from "node:events";
 import { WebSocket } from "ws";
 import { createGateway } from "../apps/gateway/src/server.js";
 import { MAX_FRAME } from "../packages/protocol/src/index.js";
-const wait = async (fn: () => boolean) => {
-  for (let i = 0; i < 300 && !fn(); i++)
+const wait = async (fn: () => boolean, attempts = 300) => {
+  for (let i = 0; i < attempts && !fn(); i++)
     await new Promise((r) => setTimeout(r, 10));
   assert.ok(fn());
 };
@@ -93,6 +93,15 @@ test("gateway rejects wrong origins, cross-agent replies, excess requests and ov
     );
     request("cancel", "cancel", { target: "pending0" } as any);
     await wait(() => requests.some((r) => r.type === "cancel"));
+    await wait(
+      () =>
+        replies.some(
+          (r) =>
+            r.requestId === "pending1" &&
+            r.payload.error === "Request timed out",
+        ),
+      2300,
+    );
     const closed = once(browser, "close");
     browser.send("x".repeat(MAX_FRAME + 1));
     assert.equal((await closed)[0], 1009);
@@ -101,4 +110,23 @@ test("gateway rejects wrong origins, cross-agent replies, excess requests and ov
     await g.close();
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test("outbound backpressure closes a slow consumer before queueing more data", async () => {
+  const { send } = await import("../apps/gateway/src/server.js");
+  let closed = 0,
+    sent = false;
+  const slow = {
+    readyState: WebSocket.OPEN,
+    bufferedAmount: 3 * MAX_FRAME,
+    close: (code: number) => {
+      closed = code;
+    },
+    send: () => {
+      sent = true;
+    },
+  };
+  send(slow as unknown as WebSocket, { test: true });
+  assert.equal(closed, 1009);
+  assert.equal(sent, false);
 });

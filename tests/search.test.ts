@@ -17,6 +17,17 @@ test("safe regex, byte offsets, and sparse search cancellation", async () => {
         .results[0].offset,
       3,
     );
+    await writeFile(dir + "/a", "x".repeat(300000) + "ERROR\nERROR visible\n");
+    const bounded = await search(
+      f,
+      e.id,
+      "ERROR",
+      false,
+      new AbortController().signal,
+    );
+    assert.equal(bounded.skippedLines, 1);
+    assert.equal(bounded.results.length, 1);
+    assert.equal(bounded.results[0].offset, 300006);
     const h = await open(dir + "/big", "w");
     await h.truncate(4 * 1024 ** 3);
     await h.close();

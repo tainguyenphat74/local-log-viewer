@@ -21,3 +21,21 @@ test("strict protocol rejects arbitrary paths and excessive reads", () => {
     "folder.list",
   );
 });
+
+test("response schema rejects oversized or malformed agent payloads", async () => {
+  const { response } = await import("../packages/protocol/src/index.js");
+  assert.throws(() =>
+    response.parse({
+      requestId: "a",
+      type: "result",
+      payload: { content: "unbounded" },
+    }),
+  );
+  assert.throws(() =>
+    response.parse({
+      requestId: "a",
+      type: "error",
+      payload: { error: "x".repeat(1025) },
+    }),
+  );
+});
