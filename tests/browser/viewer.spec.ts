@@ -15,7 +15,10 @@ test.beforeAll(async () => {
       "",
     ) + "ERROR browser needle\n",
   );
-  await writeFile(dir + "/worker.log", "WARN worker ready\n");
+  await writeFile(
+    dir + "/worker.log",
+    'WARN worker ready\nINFO <img src=x onerror="window.__logviewXss=true">\n',
+  );
   gateway = await createGateway({
     password: "browser-test-password",
     statePath: dir + "/state.json",
@@ -81,6 +84,13 @@ test("login, pair, browse, tabs, search, paging, live and reconnect", async ({
   await expect(page.getByLabel("Log content")).toContainText(
     "WARN worker ready",
   );
+  await expect(page.getByLabel("Log content")).toContainText(
+    '<img src=x onerror="window.__logviewXss=true">',
+  );
+  await expect(page.getByLabel("Log content").locator("img")).toHaveCount(0);
+  expect(
+    await page.evaluate(() => (window as any).__logviewXss),
+  ).toBeUndefined();
   await page
     .getByRole("button", { name: "application.log", exact: true })
     .click();
