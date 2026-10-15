@@ -484,6 +484,11 @@ export function Workspace({
                       }).promise,
                       "replace",
                     );
+                    requestAnimationFrame(() => {
+                      if (viewport.current)
+                        viewport.current.scrollTop =
+                          viewport.current.scrollHeight;
+                    });
                   } catch (e) {
                     setError(String(e));
                   }
